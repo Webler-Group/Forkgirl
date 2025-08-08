@@ -1,12 +1,8 @@
-import { Client, Events, GatewayIntentBits, ActionRowBuilder, ButtonBuilder, ButtonStyle } from "discord.js";
-import { config } from "./config.js";
+import { Client, Events, GatewayIntentBits, ActionRowBuilder, ButtonBuilder, ButtonStyle, Partials, ActionRowData, AnyComponentBuilder } from "discord.js";
+import { config } from "./config";
 import { OpenAI } from "openai";
-import cron from "node-cron";
-import connectDB from "./config/dbConn.js";
-import { sendBirthdayreminders } from "./birthday.js";
 
 async function main() {
-    //await connectDB();
 
     const openai = new OpenAI({
         apiKey: config.openaiKey,
@@ -19,15 +15,11 @@ async function main() {
             GatewayIntentBits.MessageContent,
             GatewayIntentBits.DirectMessages
         ],
-        partials: ["CHANNEL"]
+        partials: [Partials.Channel]
     });
 
     client.once("ready", () => {
         console.log("ForkGirl is ready!");
-
-        cron.schedule("0 8 * * *", () => sendBirthdayreminders(client), {
-            timezone: "Europe/Prague"
-        });
     });
 
     client.on(Events.InteractionCreate, async (interaction) => {
@@ -49,12 +41,11 @@ async function main() {
                     messages: [{ role: 'user', content: prompt }],
                 });
 
-                let reply = response.choices[0].message.content;
-                reply = reply.slice(reply.indexOf("{"), reply.lastIndexOf("}") + 1);
-                const data = JSON.parse(reply);
+                const reply = response.choices[0].message.content;
+                const data = reply ? JSON.parse(reply.slice(reply.indexOf("{"), reply.lastIndexOf("}") + 1)) : null;
 
-                if (data.answers && data.answers.length > 0) {
-                    const answerButtons = [];
+                if (data?.answers && data.answers.length > 0) {
+                    const answerButtons: ButtonBuilder[] = [];
                     for (let i = 0; i < data.answers.length; ++i) {
                         const btn = new ButtonBuilder()
                             .setCustomId("quiz-answer-" + (i + 1) + ";" + (data.answers[i].correct ? "true" : ""))
@@ -63,7 +54,7 @@ async function main() {
                         answerButtons.push(btn);
                     }
 
-                    const row = new ActionRowBuilder().addComponents(...answerButtons);
+                    const row = new ActionRowBuilder().addComponents(...answerButtons) as any;
 
                     await interaction.editReply({
                         content: data.text,
@@ -79,7 +70,53 @@ async function main() {
                     content: "Something went wrong!"
                 });
             }
+        } else if (interaction.commandName === "purge-word") {
+            // Check if user is admin
+            if (!interaction.memberPermissions?.has("Administrator")) {
+                await interaction.reply({ content: "❌ You must be a server admin to use this command.", ephemeral: true });
+                return;
+            }
+
+            const word = interaction.options.getString("word");
+            if (!word) {
+                await interaction.reply({ content: "Please provide a word to search for.", ephemeral: true });
+                return;
+            }
+
+            await interaction.deferReply({ ephemeral: true });
+
+            const channel = interaction.channel;
+            if (!channel?.isTextBased()) {
+                await interaction.editReply("This command can only be used in text channels.");
+                return;
+            }
+
+            let deletedCount = 0;
+            let lastId: string | undefined;
+
+            try {
+                while (true) {
+                    const messages = await channel.messages.fetch({ limit: 100, before: lastId });
+                    if (messages.size === 0) break;
+
+                    for (const [, msg] of messages) {
+                        if (msg.content.includes(word)) {
+                            await msg.delete();
+                            deletedCount++;
+                        }
+                    }
+
+                    lastId = messages.last()?.id;
+                    if (!lastId) break;
+                }
+
+                await interaction.editReply(`✅ Deleted ${deletedCount} messages containing "${word}" in this channel.`);
+            } catch (err) {
+                console.error(err);
+                await interaction.editReply("❌ An error occurred while deleting messages.");
+            }
         }
+
     });
 
     client.on(Events.InteractionCreate, async interaction => {

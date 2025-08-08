@@ -1,12 +1,13 @@
 {
   "name": "forkgirl",
-  "type": "module",
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
   "scripts": {
-    "deploy-commands": "node ./cli/deploy-commands.js",
-    "start": "node index.js"
+    "deploy-commands": "ts-node src/cli/deploy-commands.ts",
+    "dev": "nodemon src/index.ts",
+    "start": "node dist/index.js",
+    "build": "tsc"
   },
   "keywords": [],
   "author": "",
@@ -17,5 +18,10 @@
     "mongoose": "^8.15.1",
     "node-cron": "^4.1.0",
     "openai": "^5.0.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.10",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.2"
   }
 }
