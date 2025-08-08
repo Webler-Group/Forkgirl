@@ -76,22 +76,29 @@ function main() {
                 }
             }
             else if (interaction.commandName === "purge-word") {
-                // Check if user is admin
-                if (!((_a = interaction.memberPermissions) === null || _a === void 0 ? void 0 : _a.has("Administrator"))) {
-                    yield interaction.reply({ content: "❌ You must be a server admin to use this command.", ephemeral: true });
+                // Check admin perms
+                if (!((_a = interaction.memberPermissions) === null || _a === void 0 ? void 0 : _a.has(discord_js_1.PermissionFlagsBits.Administrator))) {
+                    yield interaction.reply({
+                        content: "❌ You must be a server admin to use this command.",
+                        flags: discord_js_1.MessageFlags.Ephemeral
+                    });
                     return;
                 }
                 const word = interaction.options.getString("word");
                 if (!word) {
-                    yield interaction.reply({ content: "Please provide a word to search for.", ephemeral: true });
+                    yield interaction.reply({
+                        content: "Please provide a word to search for.",
+                        flags: discord_js_1.MessageFlags.Ephemeral
+                    });
                     return;
                 }
-                yield interaction.deferReply({ ephemeral: true });
+                yield interaction.deferReply({ flags: discord_js_1.MessageFlags.Ephemeral });
                 const channel = interaction.channel;
                 if (!(channel === null || channel === void 0 ? void 0 : channel.isTextBased())) {
                     yield interaction.editReply("This command can only be used in text channels.");
                     return;
                 }
+                const regex = new RegExp(word, "i"); // case-insensitive search
                 let deletedCount = 0;
                 let lastId;
                 try {
@@ -99,11 +106,29 @@ function main() {
                         const messages = yield channel.messages.fetch({ limit: 100, before: lastId });
                         if (messages.size === 0)
                             break;
+                        // Split into <14 days old (bulk delete) and older
+                        const now = Date.now();
+                        const recent = new discord_js_1.Collection();
+                        const older = [];
                         for (const [, msg] of messages) {
-                            if (msg.content.includes(word)) {
-                                yield msg.delete();
-                                deletedCount++;
+                            if (regex.test(msg.content)) {
+                                if (now - msg.createdTimestamp < 14 * 24 * 60 * 60 * 1000) {
+                                    recent.set(msg.id, msg);
+                                }
+                                else {
+                                    older.push(msg);
+                                }
                             }
+                        }
+                        // Bulk delete recent ones
+                        if (recent.size > 0) {
+                            yield channel.bulkDelete(recent, true);
+                            deletedCount += recent.size;
+                        }
+                        // Delete older ones individually
+                        for (const msg of older) {
+                            yield msg.delete().catch(() => { });
+                            deletedCount++;
                         }
                         lastId = (_b = messages.last()) === null || _b === void 0 ? void 0 : _b.id;
                         if (!lastId)

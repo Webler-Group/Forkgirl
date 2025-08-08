@@ -1,4 +1,4 @@
-import { Client, Events, GatewayIntentBits, ActionRowBuilder, ButtonBuilder, ButtonStyle, Partials, ActionRowData, AnyComponentBuilder } from "discord.js";
+import { Client, Events, GatewayIntentBits, ActionRowBuilder, ButtonBuilder, ButtonStyle, Partials, ActionRowData, AnyComponentBuilder, Collection, MessageFlags, PermissionFlagsBits } from "discord.js";
 import { config } from "./config";
 import { OpenAI } from "openai";
 
@@ -123,7 +123,7 @@ async function main() {
 
                     // Bulk delete recent ones
                     if (recent.size > 0) {
-                        await channel.bulkDelete(recent, true);
+                        await (channel as any).bulkDelete(recent, true);
                         deletedCount += recent.size;
                     }
 
