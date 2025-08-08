@@ -152,6 +152,24 @@ function main() {
                 });
             }
         }));
+        const bannedWords = ["manav", "shruti"];
+        client.on(discord_js_1.Events.MessageCreate, (message) => __awaiter(this, void 0, void 0, function* () {
+            if (message.author.bot)
+                return;
+            const content = message.content;
+            if (bannedWords.some(word => {
+                const regex = new RegExp(word, "i"); // case-insensitive regex
+                return regex.test(content);
+            })) {
+                try {
+                    yield message.delete();
+                    console.log(`Deleted message from ${message.author.tag} containing banned word.`);
+                }
+                catch (error) {
+                    console.error("Failed to delete message:", error);
+                }
+            }
+        }));
         yield client.login(config_1.config.discordBotToken);
     });
 }

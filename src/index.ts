@@ -146,7 +146,7 @@ async function main() {
 
     });
 
-    client.on(Events.InteractionCreate, async interaction => {
+    client.on(Events.InteractionCreate, async (interaction) => {
         if (!interaction.isButton()) return;
 
         if (interaction.customId.startsWith("quiz-answer")) {
@@ -154,6 +154,25 @@ async function main() {
             await interaction.reply({
                 content: interaction.user.displayName + ", " + (correct ? "Correct!" : "Wrong!")
             });
+        }
+    });
+
+    const bannedWords = ["manav", "shruti"];
+
+    client.on(Events.MessageCreate, async (message) => {
+        if (message.author.bot) return;
+
+        const content = message.content;
+        if (bannedWords.some(word => {
+            const regex = new RegExp(word, "i"); // case-insensitive regex
+            return regex.test(content);
+        })) {
+            try {
+                await message.delete();
+                console.log(`Deleted message from ${message.author.tag} containing banned word.`);
+            } catch (error) {
+                console.error("Failed to delete message:", error);
+            }
         }
     });
 
