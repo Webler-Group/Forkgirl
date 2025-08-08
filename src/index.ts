@@ -71,19 +71,25 @@ async function main() {
                 });
             }
         } else if (interaction.commandName === "purge-word") {
-            // Check if user is admin
-            if (!interaction.memberPermissions?.has("Administrator")) {
-                await interaction.reply({ content: "❌ You must be a server admin to use this command.", ephemeral: true });
+            // Check admin perms
+            if (!interaction.memberPermissions?.has(PermissionFlagsBits.Administrator)) {
+                await interaction.reply({
+                    content: "❌ You must be a server admin to use this command.",
+                    flags: MessageFlags.Ephemeral
+                });
                 return;
             }
 
             const word = interaction.options.getString("word");
             if (!word) {
-                await interaction.reply({ content: "Please provide a word to search for.", ephemeral: true });
+                await interaction.reply({
+                    content: "Please provide a word to search for.",
+                    flags: MessageFlags.Ephemeral
+                });
                 return;
             }
 
-            await interaction.deferReply({ ephemeral: true });
+            await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
             const channel = interaction.channel;
             if (!channel?.isTextBased()) {
@@ -91,6 +97,7 @@ async function main() {
                 return;
             }
 
+            const regex = new RegExp(word, "i"); // case-insensitive search
             let deletedCount = 0;
             let lastId: string | undefined;
 
@@ -99,11 +106,31 @@ async function main() {
                     const messages = await channel.messages.fetch({ limit: 100, before: lastId });
                     if (messages.size === 0) break;
 
+                    // Split into <14 days old (bulk delete) and older
+                    const now = Date.now();
+                    const recent: Collection<string, any> = new Collection();
+                    const older: any[] = [];
+
                     for (const [, msg] of messages) {
-                        if (msg.content.includes(word)) {
-                            await msg.delete();
-                            deletedCount++;
+                        if (regex.test(msg.content)) {
+                            if (now - msg.createdTimestamp < 14 * 24 * 60 * 60 * 1000) {
+                                recent.set(msg.id, msg);
+                            } else {
+                                older.push(msg);
+                            }
                         }
+                    }
+
+                    // Bulk delete recent ones
+                    if (recent.size > 0) {
+                        await channel.bulkDelete(recent, true);
+                        deletedCount += recent.size;
+                    }
+
+                    // Delete older ones individually
+                    for (const msg of older) {
+                        await msg.delete().catch(() => { });
+                        deletedCount++;
                     }
 
                     lastId = messages.last()?.id;
